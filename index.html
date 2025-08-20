@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiosk Demo — Hotspots, Lightbox & Per-brochure Cart</title>
+  <style>
+    body { margin:0; font-family:sans-serif; background:#0a0a0a; color:#eee; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#111; color:#eee; position:sticky; top:0; z-index:100; }
+    nav { display:flex; gap:8px; }
+    nav button { background:#222; color:#eee; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; }
+    nav button.active { background:#10b981; color:#000; }
+    .page { display:none; padding:16px; }
+    .page.active { display:block; }
+
+    .grid { display:grid; gap:16px; grid-template-columns:2fr 1fr; }
+    .card { background:#151515; border:1px solid #333; border-radius:12px; overflow:hidden; }
+    .card h2 { margin:0; padding:12px; background:#1e1e1e; border-bottom:1px solid #333; }
+    .card .content { padding:12px; }
+
+    .map svg { width:100%; height:auto; display:block; }
+    .hotspot { fill:rgba(16,185,129,.3); stroke:#10b981; stroke-width:3; cursor:pointer; }
+    .hotspot-label { fill:#fff; font-weight:700; pointer-events:none; }
+
+    .list { display:grid; gap:8px; }
+    .item { background:#1e1e1e; border:1px solid #333; border-radius:8px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; }
+
+    .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+    .btn.primary { background:#10b981; color:#000; }
+    .btn.secondary { background:#333; color:#eee; }
+    .btn.block { width:100%; justify-content:center; }
+
+    .badge { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 6px; border-radius:999px; background:#10b981; color:#001; font-weight:800; font-size:12px; margin-left:6px; }
+    .icon { width:16px; height:16px; margin-right:6px; vertical-align:middle; }
+
+    .card.narrow { max-width:560px; margin:0 auto; }
+    .input { width:100%; height:48px; border-radius:10px; border:1px solid #333; background:#0f0f0f; color:#eee; padding:0 12px; }
+    .input:focus { outline:none; border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.25); }
+    .input-label { display:block; color:#a9a9a9; font-size:14px; margin:8px 0 6px; }
+    .remove { background:#2a2a2a; color:#eee; border:1px solid #3a3a3a; border-radius:8px; padding:6px 10px; cursor:pointer; }
+    .remove:hover { background:#333; }
+    .hint { color:#aaa; font-size:13px; }
+
+    /* Lightbox / modal */
+    .overlay { position:fixed; inset:0; display:none; background:rgba(0,0,0,.6); z-index:200; }
+    .overlay.show { display:block; }
+    .lightbox { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw, 820px); max-height:80vh; overflow:auto; background:#151515; border:1px solid #333; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+    .lightbox header { position:sticky; top:0; background:#1e1e1e; border-bottom:1px solid #333; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; z-index:5; }
+    .lightbox h3 { margin:0; font-size:18px; }
+    .lightbox .body { padding:16px; display:grid; gap:12px; }
+    .close { background:transparent; border:none; color:#eee; font-size:20px; cursor:pointer; border-radius:8px; padding:6px; }
+    .close:hover { background:#2a2a2a; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:10px; }
+    .row .left { display:flex; align-items:center; gap:10px; }
+    .row a { color:#a8f3d2; text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>Kiosk Demo</div>
+    <nav>
+      <button data-page="page1" class="active">Kaart 1</button>
+      <button data-page="page2">Kaart 2</button>
+      <button data-page="checkout">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3h2l.4 2M7 13h10l3-8H6.4M7 13L5.4 5M7 13l-2 5h12m-6 0a1 1 0 110-2 1 1 0 010 2zm6 0a1 1 0 110-2 1 1 0 010 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Mandje <span id="cartCount" class="badge">0</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- Pagina 1 -->
+  <div id="page1" class="page active">
+    <div class="grid">
+      <section class="card">
+        <h2>Kaart 1</h2>
+        <div class="content">
+          <div class="map">
+            <svg viewBox="0 0 1600 900">
+              <image href="https://picsum.dev/800/450" x="0" y="0" width="1600" height="900" />
+            </svg>
+          </div>
+        </div>
+      </section>
+      <aside class="card">
+        <h2>Je selectie</h2>
+        <div class="content">
+          <div id="list1" class="list"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Pagina 2 -->
+  <div id="page2" class="page">
+    <div class="grid">
+      <section class="card">
+        <h2>Kaart 2</h2>
+        <div class="content">
+          <div class="map">
+            <svg viewBox="0 0 1600 900">
+              <image href="https://picsum.dev/800/450?grayscale" x="0" y="0" width="1600" height="900" />
+            </svg>
+          </div>
+        </div>
+      </section>
+      <aside class="card">
+        <h2>Je selectie</h2>
+        <div class="content">
+          <div id="list2" class="list"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Checkout -->
+  <div id="checkout" class="page">
+    <section class="card narrow">
+      <h2>Mandje & Versturen</h2>
+      <div class="content">
+        <div id="checkoutList" class="list"></div>
+        <label for="email" class="input-label">E-mailadres om links/PDF's te ontvangen</label>
+        <input id="email" type="email" placeholder="jij@example.nl" class="input" />
+        <button class="btn primary block" id="sendLinks">E-mail downloadlinks</button>
+        <button class="btn secondary block" id="sendAttachments">E-mail met bijlagen</button>
+        <div id="status" class="hint"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Lightbox / modal -->
+  <div id="modalOverlay" class="overlay" aria-hidden="true">
+    <div class="lightbox" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header>
+        <h3 id="modalTitle">Titel</h3>
+        <button id="modalClose" class="close" aria-label="Sluiten">✕</button>
+      </header>
+      <div class="body">
+        <div id="modalDesc" class="hint">Beschrijving…</div>
+        <div id="modalList" class="list"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="modalSelectAll" class="btn primary">Alles toevoegen aan mandje</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    // --------- Data ---------
+    const HOTSPOTS = {
+      page1: [
+        {
+          id: 'zone-a',
+          title: 'Informatiepunt A',
+          desc: 'Hier vind je meer over duurzaam sparen en onze groene spaarrekeningen.',
+          brochures: [
+            { title: 'Duurzaam Sparen – Intro', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+            { title: 'Duurzaam Sparen – Voorwaarden', url: 'https://www.africau.edu/images/default/sample.pdf' }
+          ],
+          shape: { type: 'rect', x: 220, y: 220, w: 320, h: 180 }
+        },
+        {
+          id: 'zone-b',
+          title: 'Informatiepunt B',
+          desc: 'Meer weten over groene hypotheken en rentekortingen?',
+          brochures: [
+            { title: 'Groene Hypotheek – Brochure', url: 'https://file-examples.com/storage/fe9be1f7d5c632c2a7b9b7a/2017/10/file-example_PDF_1MB.pdf' }
+          ],
+          shape: { type: 'circle', cx: 1150, cy: 520, r: 120 }
+        }
+      ],
+      page2: [
+        {
+          id: 'zone-c',
+          title: 'Informatiepunt C',
+          desc: 'Impact beleggen: rendement én positieve impact.',
+          brochures: [
+            { title: 'Impact Beleggen – Overzicht', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+            { title: 'Impact Beleggen – Cases', url: 'https://file-examples.com/storage/fe9be1f7d5c632c2a7b9b7a/2017/10/file-example_PDF_1MB.pdf' }
+          ],
+          shape: { type: 'poly', points: [[1200,220],[1500,260],[1460,520],[1220,480]] }
+        }
+      ]
+    };
+
+    // --------- Cart (per brochure) ---------
+    // key => {title, pdfUrl}
+    const selected = new Map();
+    const keyFor = (hotspotId, idx) => `${hotspotId}::${idx}`;
+
+    function renderCartCount(){ const badge=document.getElementById('cartCount'); if(badge) badge.textContent=String(selected.size); }
+
+    function renderList(page){
+      const list = document.getElementById('list'+page.slice(-1));
+      if(!list) return;
+      list.innerHTML = '';
+      for(const h of HOTSPOTS[page]){
+        let count = 0; (h.brochures||[]).forEach((_,i)=>{ if(selected.has(keyFor(h.id,i))) count++; });
+        const item = document.createElement('div'); item.className='item';
+        const left = document.createElement('span');
+        left.textContent = count ? `${h.title} · ${count}/${h.brochures.length} geselecteerd` : h.title;
+        const btn = document.createElement('button'); btn.className='btn secondary'; btn.textContent='Meer info';
+        btn.addEventListener('click', ()=> openModal(h));
+        item.appendChild(left); item.appendChild(btn); list.appendChild(item);
+      }
+    }
+
+    function renderCheckout(){
+      const list = document.getElementById('checkoutList');
+      list.innerHTML='';
+      if(selected.size===0){ const empty=document.createElement('div'); empty.className='hint'; empty.textContent='Nog geen items in het mandje.'; list.appendChild(empty); return; }
+      for (const [id, data] of selected.entries()) {
+        const item = document.createElement('div'); item.className = 'item';
+        const left = document.createElement('span'); left.textContent = data.title;
+        const right = document.createElement('div'); right.style.display='flex'; right.style.gap='8px';
+        const preview = document.createElement('a'); preview.href=data.pdfUrl; preview.target='_blank'; preview.rel='noopener noreferrer'; preview.textContent='Voorbeeld';
+        const btn = document.createElement('button'); btn.className = 'remove'; btn.textContent = 'Verwijder';
+        btn.addEventListener('click', () => { selected.delete(id); renderAll(); renderHotspots(); });
+        right.appendChild(preview); right.appendChild(btn);
+        item.appendChild(left); item.appendChild(right);
+        list.appendChild(item);
+      }
+    }
+
+    function renderAll(){ renderList('page1'); renderList('page2'); renderCheckout(); renderCartCount(); }
+
+    // --------- Hotspots tekenen ---------
+    function labelCenter(shape){
+      if(shape.type==='rect'){ return [shape.x + shape.w/2, shape.y + shape.h/2]; }
+      if(shape.type==='circle'){ return [shape.cx, shape.cy]; }
+      if(shape.type==='poly'){
+        let x=0,y=0; for(const p of shape.points){ x+=p[0]; y+=p[1]; }
+        return [x/shape.points.length, y/shape.points.length];
+      }
+      return [0,0];
+    }
+
+    function renderHotspotsForPage(pageId){
+      const page = document.getElementById(pageId);
+      if(!page) return;
+      const svg = page.querySelector('svg');
+      if(!svg) return;
+      svg.querySelectorAll('[data-hotspot]').forEach(n=>n.remove());
+      const items = HOTSPOTS[pageId] || [];
+      for(const h of items){
+        if(!h.shape) continue;
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('data-hotspot', h.id);
+        let shapeEl;
+        if(h.shape.type==='rect'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          shapeEl.setAttribute('x', h.shape.x);
+          shapeEl.setAttribute('y', h.shape.y);
+          shapeEl.setAttribute('width', h.shape.w);
+          shapeEl.setAttribute('height', h.shape.h);
+          shapeEl.setAttribute('rx', 18);
+        } else if(h.shape.type==='circle'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          shapeEl.setAttribute('cx', h.shape.cx);
+          shapeEl.setAttribute('cy', h.shape.cy);
+          shapeEl.setAttribute('r', h.shape.r);
+        } else if(h.shape.type==='poly'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          shapeEl.setAttribute('points', h.shape.points.map(p=>p.join(',')).join(' '));
+        }
+        shapeEl.setAttribute('class', 'hotspot');
+        shapeEl.setAttribute('tabindex','0');
+        shapeEl.setAttribute('role','button');
+        shapeEl.addEventListener('click', ()=> openModal(h));
+        shapeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') openModal(h); });
+        g.appendChild(shapeEl);
+
+        const [tx, ty] = labelCenter(h.shape);
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x', tx);
+        label.setAttribute('y', ty);
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('dominant-baseline','central');
+        label.setAttribute('class','hotspot-label');
+        label.textContent = h.title;
+        g.appendChild(label);
+
+        svg.appendChild(g);
+      }
+    }
+
+    function renderHotspots(){
+      renderHotspotsForPage('page1');
+      renderHotspotsForPage('page2');
+    }
+
+    // --------- Lightbox logic (per-brochure) ---------
+    const overlay = document.getElementById('modalOverlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalDesc = document.getElementById('modalDesc');
+    const modalList = document.getElementById('modalList');
+    const modalSelectAll = document.getElementById('modalSelectAll');
+    const modalClose = document.getElementById('modalClose');
+
+    function openModal(h){
+      modalTitle.textContent = h.title;
+      modalDesc.textContent = h.desc || '';
+      modalList.innerHTML = '';
+
+      (h.brochures||[{title:h.title, url:h.pdfUrl}]).forEach((b, i) => {
+        const key = keyFor(h.id, i);
+        const checked = selected.has(key);
+
+        const row = document.createElement('div'); row.className = 'row';
+        const left = document.createElement('div'); left.className = 'left';
+
+        const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = checked; cb.id = key;
+        const lbl = document.createElement('label'); lbl.setAttribute('for', key); lbl.textContent = b.title;
+        left.appendChild(cb); left.appendChild(lbl);
+
+        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+        const preview = document.createElement('a'); preview.href = b.url; preview.target='_blank'; preview.rel='noopener noreferrer'; preview.textContent='Voorbeeld';
+        actions.appendChild(preview);
+
+        row.appendChild(left); row.appendChild(actions);
+        modalList.appendChild(row);
+
+        cb.addEventListener('change', ()=>{
+          if(cb.checked){ selected.set(key, { title: b.title, pdfUrl: b.url }); }
+          else { selected.delete(key); }
+          renderAll();
+        });
+      });
+
+      modalSelectAll.onclick = () => {
+        const allChecked = (h.brochures||[{title:h.title, url:h.pdfUrl}]).every((_, i) => selected.has(keyFor(h.id,i)));
+        if(allChecked){ (h.brochures||[{title:h.title, url:h.pdfUrl}]).forEach((_, i)=> selected.delete(keyFor(h.id,i))); }
+        else { (h.brochures||[{title:h.title, url:h.pdfUrl}]).forEach((b, i)=> selected.set(keyFor(h.id,i), { title: b.title, pdfUrl: b.url })); }
+        openModal(h); // herteken modal
+        renderAll();
+      };
+
+      overlay.classList.add('show');
+      overlay.setAttribute('aria-hidden','false');
+    }
+
+    function closeModal(){
+      overlay.classList.remove('show');
+      overlay.setAttribute('aria-hidden','true');
+    }
+
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
+    modalClose.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && overlay.classList.contains('show')) closeModal(); });
+
+    // --------- E-mail flow ---------
+    async function handleSend(mode){
+      const email=document.getElementById('email').value.trim();
+      const status=document.getElementById('status');
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ status.textContent='Ongeldig e-mailadres'; return; }
+      const items=Array.from(selected.values());
+      if(!items.length){ status.textContent='Leeg mandje'; return; }
+      status.textContent='Verzenden…';
+      await new Promise(r=>setTimeout(r,1000));
+      status.textContent='Verzonden ('+mode+') naar '+email;
+    }
+
+    document.getElementById('sendLinks').addEventListener('click', ()=>handleSend('links'));
+    document.getElementById('sendAttachments').addEventListener('click', ()=>handleSend('attachments'));
+
+    // --------- Navigatie ---------
+    document.querySelectorAll('nav button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+        document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+        document.getElementById(btn.dataset.page).classList.add('active');
+        btn.classList.add('active');
+        renderHotspots();
+        renderAll();
+      });
+    });
+
+    // --------- Boot ---------
+    renderAll();
+    renderHotspots();
+  </script>
+</body>
+</html>

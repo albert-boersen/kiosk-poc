@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SVG Image Map Kiosk POC — met Shopping & E-mail</title>
+  <style>
+    :root {
+      --bg: #0a0a0a; --text: #eaeaea; --muted: #a1a1a1;
+      --card: #151515; --card2: #1e1e1e; --bd: #262626;
+      --brand: #10b981; --brand-weak: rgba(16,185,129,.25);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+
+    .app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+    .header { position: sticky; top: 0; z-index: 10; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; background: rgba(10,10,10,.7); backdrop-filter: blur(8px); border-bottom:1px solid var(--bd); }
+    .title { font-weight: 800; font-size: 18px; }
+    .muted { color: var(--muted); font-size: 14px; }
+
+    .grid { display:grid; gap:16px; grid-template-columns: 1fr; padding:16px; }
+    @media (min-width: 1024px) { .grid { grid-template-columns: 2fr 1fr; } }
+
+    .card { background: var(--card); border:1px solid var(--bd); border-radius:16px; overflow:hidden; }
+    .card h2 { margin:0; padding:12px 14px; border-bottom:1px solid var(--bd); font-size:18px; }
+    .card .content { padding:16px; }
+
+    .map svg { width: 100%; height: auto; display: block; }
+    .hotspot { transition: all .2s ease; outline: none; cursor:pointer; }
+    .hotspot.fill { fill: var(--brand-weak); }
+    .hotspot.stroke { stroke: rgba(16,185,129,.9); stroke-width: 3; }
+    .hotspot.active.fill { fill: rgba(16,185,129,.5); }
+    .hotspot.active.stroke { stroke: var(--brand); }
+    .hotspot:hover { filter: brightness(1.08); }
+    .hotspot-label { fill:#fff; font-weight:700; font-size:18px; text-shadow: 0 1px 2px rgba(0,0,0,.5); pointer-events:none; }
+
+    .list { display:grid; gap:10px; }
+    .item { display:flex; align-items:center; justify-content:space-between; gap:12px; background: var(--card2); border:1px solid var(--bd); padding:10px 12px; border-radius:12px; }
+    .left { display:flex; align-items:center; gap:10px; }
+    .checkbox { width:20px; height:20px; border-radius:6px; border:2px solid #3a3a3a; display:inline-flex; align-items:center; justify-content:center; background:#101010; color:#08130f; font-weight:900; }
+    .checkbox.checked { background: var(--brand); border-color: var(--brand); }
+    .btn { appearance:none; display:inline-flex; align-items:center; justify-content:center; gap:8px; height:44px; padding:0 14px; border-radius:999px; cursor:pointer; font-weight:700; border:1px solid var(--bd); background:#222; color:var(--text); }
+    .btn:hover { filter: brightness(1.05); }
+    .btn.primary { background: var(--brand); border-color: var(--brand); color:#062d22; }
+    .btn.block { width:100%; }
+    .btn.ghost { background: transparent; }
+
+    label.input { display:block; color: var(--muted); font-size:13px; margin-bottom:6px; }
+    input[type="email"] { width:100%; height:44px; border-radius:10px; border:1px solid var(--bd); background:#0f0f0f; color:var(--text); padding:0 12px; }
+
+    .toast { position: fixed; right: 14px; bottom: 60px; background: #111; color: var(--text); border: 1px solid #2a2a2a; padding: 10px 12px; border-radius: 10px; opacity: 0; transform: translateY(8px); transition: all .2s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    .footer { position:fixed; left:0; right:0; bottom:0; text-align:center; font-size:12px; color:var(--muted); padding:8px 10px; background: rgba(20,20,20,.6); backdrop-filter: blur(8px); border-top:1px solid var(--bd); }
+
+    .cursor-none { cursor: none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div>
+        <div class="title">Interactiekaart</div>
+        <div class="muted">Kies brochures, voeg toe aan je "mandje", en ontvang ze per e-mail</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" id="resetBtn">Opnieuw</button>
+        <button class="btn" id="fsBtn">Volledig scherm</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <!-- Kaart -->
+      <section class="card">
+        <h2>Kies een zone</h2>
+        <div class="content">
+          <div class="map" aria-label="Interactieve plattegrond">
+            <svg id="svgMap" viewBox="0 0 1600 900" role="img" aria-label="Plattegrond">
+              <!-- Hogere resolutie achtergrond voor scherp beeld op hi-DPI -->
+              <image href="https://picsum.dev/1600/900" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Selectie & e-mail -->
+      <aside class="card">
+        <h2>Je selectie (mandje)</h2>
+        <div class="content">
+          <div id="list" class="list" aria-live="polite"></div>
+
+          <div style="margin-top:10px;">
+            <label for="email" class="input">E-mailadres om links/PDF's te ontvangen</label>
+            <input id="email" type="email" placeholder="jij@example.nl" inputmode="email" autocomplete="email" />
+          </div>
+
+          <div style="display:grid; gap:10px; margin-top:12px;">
+            <button class="btn primary block" id="sendLinks">Stuur e-mail met downloadlinks</button>
+            <button class="btn block" id="sendAttachments">Stuur e-mail met PDF's als bijlage</button>
+          </div>
+
+          <div id="status" class="muted" style="margin-top:8px; min-height:18px;"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div class="footer">Kiosk-tip: gebruik fullscreen en een OS-level kiosk wrapper voor extra blokkades.</div>
+
+  <script>
+    // ---------------- Demo data (met PDF-urls) ----------------
+    const HOTSPOTS = [
+      { id: 'zone-a', title: 'Duurzaam Sparen', pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', shape: { type: 'rect', x: 190, y: 190, w: 260, h: 140 } },
+      { id: 'zone-b', title: 'Groene Hypotheek', pdfUrl: 'https://www.africau.edu/images/default/sample.pdf', shape: { type: 'circle', cx: 980, cy: 360, r: 120 } },
+      { id: 'zone-c', title: 'Impact Beleggen', pdfUrl: 'https://file-examples.com/storage/fe9be1f7d5c632c2a7b9b7a/2017/10/file-example_PDF_1MB.pdf', shape: { type: 'poly', points: [[1250,220],[1500,260],[1460,520],[1220,480]] } },
+    ];
+
+    // ---------------- State ----------------
+    const selected = new Map(); // id -> bool
+    let idleTimer = null; let cursorTimer = null;
+    const IDLE_RESET_MS = 90_000; // 90s
+    const CURSOR_HIDE_MS = 4_000; // 4s
+
+    // ---------------- Elements ----------------
+    const svg = document.getElementById('svgMap');
+    const list = document.getElementById('list');
+    const emailInput = document.getElementById('email');
+    const statusEl = document.getElementById('status');
+    const toastEl = document.getElementById('toast');
+
+    // ---------------- Helpers ----------------
+    function centroid(points){ let x=0,y=0;points.forEach(p=>{x+=p[0];y+=p[1];});return [x/points.length,y/points.length]; }
+    function showToast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), 2200); }
+    function validateEmail(v){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v); }
+
+    function renderList(){
+      list.innerHTML = '';
+      for(const h of HOTSPOTS){
+        const isChecked = !!selected.get(h.id);
+        const item = document.createElement('div'); item.className='item';
+        const left = document.createElement('div'); left.className='left';
+        const box = document.createElement('div'); box.className='checkbox'+(isChecked?' checked':''); box.setAttribute('role','checkbox'); box.setAttribute('aria-checked', String(isChecked)); box.tabIndex=0;
+        box.addEventListener('click',()=>toggle(h.id));
+        box.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' ') toggle(h.id); });
+        const label = document.createElement('div'); label.textContent = h.title; label.style.fontWeight='700';
+        left.appendChild(box); left.appendChild(label);
+        const link = document.createElement('a'); link.href=h.pdfUrl; link.target='_blank'; link.rel='noreferrer noopener'; link.textContent='Voorbeeld'; link.className='muted';
+        item.appendChild(left); item.appendChild(link); list.appendChild(item);
+      }
+    }
+
+    function renderHotspots(){
+      svg.querySelectorAll('[data-hotspot]').forEach(n=>n.remove());
+      for(const h of HOTSPOTS){
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('data-hotspot',h.id); g.setAttribute('aria-label', h.title);
+        const active = !!selected.get(h.id);
+        const commonClass = `hotspot fill ${active ? 'active' : ''} hotspot stroke`;
+        let shapeEl;
+        if(h.shape.type==='rect'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          shapeEl.setAttribute('x',h.shape.x); shapeEl.setAttribute('y',h.shape.y);
+          shapeEl.setAttribute('width',h.shape.w); shapeEl.setAttribute('height',h.shape.h); shapeEl.setAttribute('rx',18);
+        } else if(h.shape.type==='circle'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          shapeEl.setAttribute('cx',h.shape.cx); shapeEl.setAttribute('cy',h.shape.cy); shapeEl.setAttribute('r',h.shape.r);
+        } else if(h.shape.type==='poly'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          shapeEl.setAttribute('points', h.shape.points.map(p=>p.join(',')).join(' '));
+        }
+        shapeEl.setAttribute('class', commonClass); shapeEl.setAttribute('tabindex', '0'); shapeEl.setAttribute('role', 'button');
+        shapeEl.addEventListener('click',()=>{ toggle(h.id); });
+        shapeEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' ') toggle(h.id); });
+        g.appendChild(shapeEl);
+
+        // label
+        let tx,ty; if(h.shape.type==='rect'){ tx=h.shape.x+h.shape.w/2; ty=h.shape.y+h.shape.h/2; } else if(h.shape.type==='circle'){ tx=h.shape.cx; ty=h.shape.cy; } else { [tx,ty]=centroid(h.shape.points); }
+        const label=document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x',tx); label.setAttribute('y',ty); label.setAttribute('text-anchor','middle'); label.setAttribute('dominant-baseline','central'); label.setAttribute('class','hotspot-label');
+        label.textContent=h.title; g.appendChild(label);
+
+        svg.appendChild(g);
+      }
+    }
+
+    function toggle(id){ selected.set(id, !selected.get(id)); renderHotspots(); renderList(); onActivity(); }
+
+    // ---------------- E-mail flow (shopping-like) ----------------
+    async function handleSend(mode){
+      const email = emailInput.value.trim();
+      if(!validateEmail(email)){ showToast('Voer een geldig e-mailadres in.'); return; }
+      const items = HOTSPOTS.filter(h=>!!selected.get(h.id)).map(h=>({ title: h.title, pdfUrl: h.pdfUrl }));
+      if(!items.length){ showToast('Selecteer eerst één of meer brochures.'); return; }
+      statusEl.textContent = 'Bezig met verzenden…';
+      try {
+        // --- VERVANG DIT DOOR ECHTE INTEGRATIE ---
+        // Optie A (client-only): EmailJS of Resend Forms
+        // Optie B (aanrader voor bijlagen): eigen API-route die via Resend/SendGrid/Mailgun mailt
+        await fakeSendEmail({ email, mode, items });
+        statusEl.textContent = 'Verzonden!'; showToast(mode==='links' ? 'E-mail met downloadlinks verzonden.' : 'E-mail met bijlagen verzonden.');
+      } catch(e){
+        console.error(e); statusEl.textContent = 'Er ging iets mis bij het verzenden.'; showToast('Verzenden mislukt. Probeer opnieuw.');
+      }
+    }
+
+    // Stub: simuleer e-mail verzending
+    function fakeSendEmail(payload){ return new Promise((resolve)=> setTimeout(resolve, 900)); }
+
+    document.getElementById('sendLinks').addEventListener('click', ()=>handleSend('links'));
+    document.getElementById('sendAttachments').addEventListener('click', ()=>handleSend('attachments'));
+
+    // ---------------- Kiosk helpers ----------------
+    function toggleFullscreen(){ if(!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); fsBtn.textContent='Verlaat volledig scherm'; } else { document.exitFullscreen?.(); fsBtn.textContent='Volledig scherm'; } }
+    function onActivity(){ document.body.classList.remove('cursor-none'); clearTimeout(cursorTimer); cursorTimer = setTimeout(()=>document.body.classList.add('cursor-none'), CURSOR_HIDE_MS); clearTimeout(idleTimer); idleTimer = setTimeout(resetAll, IDLE_RESET_MS); }
+    function resetAll(){ selected.clear(); emailInput.value=''; statusEl.textContent=''; renderList(); renderHotspots(); showToast('De sessie is opnieuw gestart.'); }
+
+    const resetBtn = document.getElementById('resetBtn'); const fsBtn = document.getElementById('fsBtn');
+    resetBtn.addEventListener('click', resetAll); fsBtn.addEventListener('click', toggleFullscreen);
+    window.addEventListener('mousemove', onActivity); window.addEventListener('touchstart', onActivity, { passive:true }); window.addEventListener('keydown', onActivity);
+
+    // ---------------- Boot ----------------
+    onActivity(); renderList(); renderHotspots();
+  </script>
+</body>
+</html>

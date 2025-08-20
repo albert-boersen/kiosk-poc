@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiosk Demo — Shopping & Navigatie</title>
+  <style>
+    body { margin:0; font-family:sans-serif; background:#0a0a0a; color:#eee; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#111; color:#eee; position:sticky; top:0; z-index:100; }
+    nav { display:flex; gap:8px; }
+    nav button { background:#222; color:#eee; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; }
+    nav button.active { background:#10b981; color:#000; }
+    .page { display:none; padding:16px; }
+    .page.active { display:block; }
+    .grid { display:grid; gap:16px; grid-template-columns:2fr 1fr; }
+    .card { background:#151515; border:1px solid #333; border-radius:12px; overflow:hidden; }
+    .card h2 { margin:0; padding:12px; background:#1e1e1e; border-bottom:1px solid #333; }
+    .card .content { padding:12px; }
+    .map svg { width:100%; height:auto; display:block; }
+    .hotspot { fill:rgba(16,185,129,.3); stroke:#10b981; stroke-width:3; cursor:pointer; }
+    .hotspot.active { fill:rgba(16,185,129,.6); }
+    .hotspot-label { fill:#fff; font-weight:700; pointer-events:none; }
+    .list { display:grid; gap:8px; }
+    .item { background:#1e1e1e; border:1px solid #333; border-radius:8px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; }
+    .btn { display:block; width:100%; margin-top:8px; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+    .btn.primary { background:#10b981; color:#000; }
+    .btn.secondary { background:#333; color:#eee; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>Kiosk Demo</div>
+    <nav>
+      <button data-page="page1" class="active">Kaart 1</button>
+      <button data-page="page2">Kaart 2</button>
+      <button data-page="checkout">Mandje</button>
+    </nav>
+  </header>
+
+  <!-- Pagina 1 -->
+  <div id="page1" class="page active">
+    <div class="grid">
+      <section class="card">
+        <h2>Kaart 1</h2>
+        <div class="content">
+          <div class="map">
+            <svg viewBox="0 0 1600 900">
+              <image href="https://picsum.dev/1600/900" x="0" y="0" width="1600" height="900" />
+            </svg>
+          </div>
+        </div>
+      </section>
+      <aside class="card">
+        <h2>Je selectie</h2>
+        <div class="content">
+          <div id="list1" class="list"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Pagina 2 -->
+  <div id="page2" class="page">
+    <div class="grid">
+      <section class="card">
+        <h2>Kaart 2</h2>
+        <div class="content">
+          <div class="map">
+            <svg viewBox="0 0 1600 900">
+              <image href="https://picsum.dev/1600/900?grayscale" x="0" y="0" width="1600" height="900" />
+            </svg>
+          </div>
+        </div>
+      </section>
+      <aside class="card">
+        <h2>Je selectie</h2>
+        <div class="content">
+          <div id="list2" class="list"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Checkout -->
+  <div id="checkout" class="page">
+    <section class="card">
+      <h2>Mandje & Versturen</h2>
+      <div class="content">
+        <div id="checkoutList" class="list"></div>
+        <label>Email: <input id="email" type="email" /></label>
+        <button class="btn primary" id="sendLinks">E-mail downloadlinks</button>
+        <button class="btn secondary" id="sendAttachments">E-mail met bijlagen</button>
+        <div id="status"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const HOTSPOTS = {
+      page1: [
+        { id: 'zone-a', title: 'Brochure A', pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', shape: { type: 'rect', x: 220, y: 220, w: 320, h: 180 } },
+        { id: 'zone-b', title: 'Brochure B', pdfUrl: 'https://www.africau.edu/images/default/sample.pdf', shape: { type: 'circle', cx: 1150, cy: 520, r: 120 } }
+      ],
+      page2: [
+        { id: 'zone-c', title: 'Brochure C', pdfUrl: 'https://file-examples.com/storage/fe9be1f7d5c632c2a7b9b7a/2017/10/file-example_PDF_1MB.pdf', shape: { type: 'poly', points: [[1200,220],[1500,260],[1460,520],[1220,480]] } }
+      ]
+    };
+
+    const selected = new Map();
+
+    function renderList(page){
+      const list = document.getElementById('list'+page.slice(-1));
+      if(!list) return;
+      list.innerHTML = '';
+      for(const h of HOTSPOTS[page]){
+        const checked = !!selected.get(h.id);
+        const item = document.createElement('div'); item.className='item';
+        const label = document.createElement('span'); label.textContent=h.title;
+        const btn = document.createElement('button'); btn.textContent= checked? 'Verwijder':'Voeg toe'; btn.onclick=()=>{ toggle(h); renderAll(); renderHotspots(); };
+        item.appendChild(label); item.appendChild(btn); list.appendChild(item);
+      }
+    }
+
+    function renderCheckout(){
+      const list = document.getElementById('checkoutList');
+      list.innerHTML='';
+      for(const [id,data] of selected){ if(data){
+        const item=document.createElement('div'); item.className='item'; item.textContent=data.title; list.appendChild(item);
+      }}
+    }
+
+    function renderAll(){ renderList('page1'); renderList('page2'); renderCheckout(); }
+
+    function toggle(h){ if(selected.has(h.id)){ selected.delete(h.id);} else { selected.set(h.id,h);} }
+
+    async function handleSend(mode){
+      const email=document.getElementById('email').value.trim();
+      const status=document.getElementById('status');
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ status.textContent='Ongeldig e-mailadres'; return; }
+      const items=Array.from(selected.values());
+      if(!items.length){ status.textContent='Leeg mandje'; return; }
+      status.textContent='Verzenden…';
+      await new Promise(r=>setTimeout(r,1000));
+      status.textContent='Verzonden ('+mode+') naar '+email;
+    }
+
+    document.getElementById('sendLinks').onclick=()=>handleSend('links');
+    document.getElementById('sendAttachments').onclick=()=>handleSend('attachments');
+
+    document.querySelectorAll('nav button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+        document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+        document.getElementById(btn.dataset.page).classList.add('active');
+        btn.classList.add('active');
+      });
+    });
+
+    function labelCenter(shape){
+      if(shape.type==='rect'){ return [shape.x + shape.w/2, shape.y + shape.h/2]; }
+      if(shape.type==='circle'){ return [shape.cx, shape.cy]; }
+      if(shape.type==='poly'){
+        let x=0,y=0; for(const p of shape.points){ x+=p[0]; y+=p[1]; }
+        return [x/shape.points.length, y/shape.points.length];
+      }
+      return [0,0];
+    }
+
+    function renderHotspotsForPage(pageId){
+      const page = document.getElementById(pageId);
+      if(!page) return;
+      const svg = page.querySelector('svg');
+      if(!svg) return;
+      svg.querySelectorAll('[data-hotspot]').forEach(n=>n.remove());
+      const items = HOTSPOTS[pageId] || [];
+      for(const h of items){
+        if(!h.shape) continue;
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('data-hotspot', h.id);
+        const active = !!selected.get(h.id);
+        let shapeEl;
+        if(h.shape.type==='rect'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          shapeEl.setAttribute('x', h.shape.x);
+          shapeEl.setAttribute('y', h.shape.y);
+          shapeEl.setAttribute('width', h.shape.w);
+          shapeEl.setAttribute('height', h.shape.h);
+          shapeEl.setAttribute('rx', 18);
+        } else if(h.shape.type==='circle'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          shapeEl.setAttribute('cx', h.shape.cx);
+          shapeEl.setAttribute('cy', h.shape.cy);
+          shapeEl.setAttribute('r', h.shape.r);
+        } else if(h.shape.type==='poly'){
+          shapeEl = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          shapeEl.setAttribute('points', h.shape.points.map(p=>p.join(',')).join(' '));
+        }
+        shapeEl.setAttribute('class', 'hotspot' + (active ? ' active' : ''));
+        shapeEl.setAttribute('tabindex','0');
+        shapeEl.setAttribute('role','button');
+        shapeEl.addEventListener('click', ()=>{ toggle(h); renderAll(); renderHotspots(); });
+        shapeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') { toggle(h); renderAll(); renderHotspots(); } });
+        g.appendChild(shapeEl);
+
+        const [tx, ty] = labelCenter(h.shape);
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x', tx);
+        label.setAttribute('y', ty);
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('dominant-baseline','central');
+        label.setAttribute('class','hotspot-label');
+        label.textContent = h.title;
+        g.appendChild(label);
+
+        svg.appendChild(g);
+      }
+    }
+
+    function renderHotspots(){
+      renderHotspotsForPage('page1');
+      renderHotspotsForPage('page2');
+    }
+
+    // Re-render bij tab wissel
+    document.querySelectorAll('nav button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ renderHotspots(); renderAll(); });
+    });
+
+    renderAll();
+    renderHotspots();
+  </script>
+</body>
+</html>
