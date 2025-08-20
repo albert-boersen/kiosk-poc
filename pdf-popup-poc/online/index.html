@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Popup (PDF.js)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Modal background */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Modal content */
+        .modal-content {
+            background: #fff;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 80%;
+            height: 80%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 10px;
+            background: #333;
+            color: white;
+            text-align: right;
+        }
+
+        .modal-header span {
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        canvas {
+            display: block;
+            margin: 10px auto;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Open PDF Popup (Clean Viewer)</h1>
+    <button onclick="openPDF('../sample1.pdf')">Open PDF 1</button>
+    <button onclick="openPDF('../sample2.pdf')">Open PDF 2</button>
+    <button onclick="openPDF('../sample3.pdf')">Open PDF 3</button>
+
+    <!-- Modal -->
+    <div id="pdfModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="pdfContainer">
+                <!-- PDF pages will render here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        function openPDF(pdfFile) {
+            const modal = document.getElementById("pdfModal");
+            const container = document.getElementById("pdfContainer");
+            container.innerHTML = ""; // Clear previous PDF
+            modal.style.display = "block";
+
+            const loadingTask = pdfjsLib.getDocument(pdfFile);
+            loadingTask.promise.then(function (pdf) {
+                // Render all pages
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    pdf.getPage(pageNum).then(function (page) {
+                        const scale = 1.2;
+                        const viewport = page.getViewport({ scale: scale });
+
+                        const canvas = document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        container.appendChild(canvas);
+
+                        page.render({
+                            canvasContext: context,
+                            viewport: viewport
+                        });
+                    });
+                }
+            });
+        }
+
+        function closeModal() {
+            document.getElementById("pdfModal").style.display = "none";
+            document.getElementById("pdfContainer").innerHTML = "";
+        }
+
+        // Close modal if user clicks outside content
+        window.onclick = function (event) {
+            const modal = document.getElementById("pdfModal");
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+
+</body>
+
+</html>
